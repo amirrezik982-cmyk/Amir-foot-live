@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>كورة لايف - بث مباشر</title>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body style="margin: 0; background-color: #080d18;">
+
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useCallback } = React;
+
+        const STREAM_SITE = "https://majed-koora.co/";
+
+        const LEAGUES = [
+          { id: "world_cup",        name: "كأس العالم 2026",   icon: "🌍", color: "#FFD700", hasStream: true,  season: 2026 },
+          { id: "champions_league", name: "دوري أبطال أوروبا", icon: "⭐", color: "#1B458F", hasStream: false, season: 2025 },
+          { id: "epl",              name: "الدوري الإنجليزي",  icon: "🏴%F0%9F%8F%B4%E2%80%8D%F0%9F%90%A7%E2%80%8D%F0%9F%90%A7%E2%80%8D%F0%9F%90%AC", color: "#3D195B", hasStream: false, season: 2025 },
+          { id: "la_liga",          name: "الدوري الإسباني",   icon: "🇪🇸", color: "#EE0000", hasStream: false, season: 2025 },
+          { id: "bundesliga",       name: "الدوري الألماني",   icon: "🇩🇪", color: "#D3010C", hasStream: false, season: 2025 },
+          { id: "serie_a",          name: "الدوري الإيطالي",   icon: "🇮🇹", color: "#003DA5", hasStream: false, season: 2025 },
+          { id: "ligue_1",          name: "الدوري الفرنسي",    icon: "🇫🇷", color: "#0055A4", hasStream: false, season: 2025 },
+        ];
+
+        const STATUS_COLORS = {
+          scheduled: "#94a3b8",
+          live:      "#22c55e",
+          halftime:  "#f59e0b",
+          finished:  "#64748b",
+          postponed: "#ef4444",
+        };
+
+        async function askClaude(prompt) {
+          try {
+            const res = await fetch("https://api.anthropic.com/v1/messages", {
+              method: "POST",
+              headers: { 
+                "Content-Type": "application/json",
+                "x-api-key": "YOUR_ANTHROPIC_API_KEY",
+                "anthropic-version": "2023-06-01",
+                "anthropic-dangerous-direct-browser-access": "true"
+              },
+              body: JSON.stringify({
+                model: "claude-3-5-sonnet-20241022",
+                max_tokens: 1000,
+                messages: [{ role: "user", content: prompt }],
+              }),
+            });
+            const data = await res.json();
+            return data.content?.[0]?.text || "";
+          } catch (error) {
+            console.error("API Error:", error);
+            return "عذراً، حدث خطأ أثناء الاتصال بالذكاء الاصطناعي.";
+          }
+        }
+
+        function TeamLogo({ url, size = 34 }) {
+          const [err, setErr] = useState(false);
+          if (err || !url) return <span style={{ fontSize: size * 0.75 }}>⚽</span>;
+          return <img src={url} alt="" width={size} height={size} style={{ objectFit: "contain" }} onError={() => setErr(true)} />;
+        }
+
+        function StreamModal({ match, onClose }) {
+          const [blocked, setBlocked] = useState(false);
+          useEffect(() => { const t = setTimeout(() => setBlocked(true), 3500); return () => clearTimeout(t); }, []);
+
+          return (
+            <div style={{ position: "fixed", inset: 0, background: "#000", zIndex: 2000, display: "flex", flexDirection: "column" }}>
+              <div style={{ background: "#0d1525", padding: "12px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid #ffffff10", flexShrink: 0 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#ef4444", display: "inline-block", animation: "blink 1s infinite" }} />
+                  <span style={{ color: "#f8fafc", fontWeight: 700, fontSize: "14px" }}>{match.home} ضد {match.away}</span>
+                </div>
+                <div style={{ display: "flex", gap: "8px" }}>
+                  <button onClick={() => window.open(STREAM_SITE, "_blank")} style={{ background: "#1a1f2e", border: "1px solid #ffffff15", borderRadius: "8px", padding: "6px 12px", color: "#94a3b8", cursor: "pointer", fontSize: "12px" }}>🔗 فتح خارجي</button>
+                  <button onClick={onClose} style={{ background: "none", border: "none", color: "#64748b", fontSize: "22px", cursor: "pointer" }}>✕</button>
+                </div>
+              </div>
+              <div style={{ flex: 1, position: "relative", background: "#000" }}>
+                {blocked ? (
+                  <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "16px" }}>
+                    <div style={{ fontSize: "52px" }}>📺</div>
+                    <div style={{ color: "#e2e8f0", fontWeight: 700, fontSize: "18px" }}>البث جاهز</div>
+                    <div style={{ color: "#64748b", fontSize: "13px", textAlign: "center", lineHeight: 1.7, maxWidth: "260px" }}>الموقع يمنع التضمين المباشر،<br />اضغط أدناه للمشاهدة</div>
+                    <button onClick={() => window.open(STREAM_SITE, "_blank")} style={{ background: "linear-gradient(135deg,#ef4444,#b91c1c)", border: "none", borderRadius: "14px", padding: "14px 32px", color: "#fff", fontWeight: 800, fontSize: "16px", cursor: "pointer" }}>
+                      🔴 شاهد المباراة الآن
+                    </button>
+                    <div style={{ color: "#334155", fontSize: "11px" }}>يفتح موقع ماجد سبورت في نافذة جديدة</div>
+                  </div>
+                ) : (
+                  <iframe src={STREAM_SITE} style={{ width: "100%", height: "100%", border: "none" }} allow="autoplay; fullscreen" allowFullScreen title="بث مباشر" onLoad={() => setBlocked(false)} />
+                )}
+              </div>
+            </div>
+          );
+        }
+
+        function MatchCard({ match, onDetail, onStream, hasStream }) {
+          const isLive = match.status === "live" || match.status === "halftime";
+          const statusColor = STATUS_COLORS[match.status] || "#94a3b8";
+          const statusLabel = { scheduled: "لم تبدأ", live: "مباشر", halftime: "استراحة", finished: "انتهت", postponed: "مؤجلة" }[match.status] || match.status;
+
+          return (
+            <div style={{ background: "linear-gradient(135deg,#1a1f2e,#0f1520)", border: isLive ? "1px solid #22c55e44" : "1px solid #ffffff10", borderRadius: "16px", padding: "15px 17px", position: "relative", overflow: "hidden" }}>
+              {isLive && <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: "2px", background: "linear-gradient(90deg,transparent,#22c55e,transparent)", animation: "pulse 2s infinite" }} />}
+
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "11px" }}>
+                <span style={{ fontSize: "11px", color: "#64748b", fontWeight: 600 }}>{match.league} • {match.round}</span>
+                <span style={{ fontSize: "11px", fontWeight: 700, padding: "3px 9px", borderRadius: "20px", background: isLive ? "#22c55e20" : "#ffffff10", color: statusColor, display: "flex", alignItems: "center", gap: "5px" }}>
+                  {isLive && <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#22c55e", display: "inline-block", animation: "blink 1s infinite" }} />}
+                  {statusLabel}{isLive && match.minute ? ` ${match.minute}'` : ""}
+                </span>
+              </div>
+
+              <div onClick={() => onDetail(match)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px", cursor: "pointer" }}>
+                <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "5px" }}>
+                  <TeamLogo url={match.homeLogo} size={34} />
+                  <div style={{ color: "#e2e8f0", fontWeight: 700, fontSize: "13px", textAlign: "right" }}>{match.home}</div>
+                </div>
+                <div style={{ textAlign: "center", minWidth: "76px" }}>
+                  {match.status === "scheduled"
+                    ? <div style={{ color: "#94a3b8", fontSize: "16px", fontWeight: 700 }}>{match.time}</div>
+                    : <div style={{ fontSize: "28px", fontWeight: 900, color: "#f8fafc", fontFamily: "monospace", letterSpacing: "3px" }}>{match.homeScore ?? 0}<span style={{ color: "#334155" }}>:</span>{match.awayScore ?? 0}</div>
+                  }
+                </div>
+                <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "5px" }}>
+                  <TeamLogo url={match.awayLogo} size={34} />
+                  <div style={{ color: "#e2e8f0", fontWeight: 700, fontSize: "13px" }}>{match.away}</div>
+                </div>
+              </div>
+
+              {hasStream && (
+                <button onClick={() => onStream(match)} style={{
+                  marginTop: "12px", width: "100%",
+                  background: isLive ? "linear-gradient(135deg,#ef444418,#b91c1c10)" : "#ffffff08",
+                  border: isLive ? "1px solid #ef444444" : "1px solid #ffffff10",
+                  borderRadius: "10px", padding: "8px", color: isLive ? "#f87171" : "#475569",
+                  fontWeight: 700, fontSize: "13px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "7px"
+                }}>
+                  {isLive
+                    ? <><span style={{ width: 7, height: 7, borderRadius: "50%", background: "#ef4444", display: "inline-block", animation: "blink 1s infinite" }} />🔴 شاهد البث المباشر</>
+                    : <>📺 شاهد عند انطلاق المباراة</>}
+                </button>
+              )}
+              {match.venue && <div style={{ marginTop: "8px", fontSize: "11px", color: "#334155", textAlign: "center" }}>📍 {match.venue}</div>}
+            </div>
+          );
+        }
+
+        // ... مكوّن المودال المتبقي ...
+        function DetailModal({ match, onClose }) {
+          const [q, setQ] = useState("");
+          const [ans, setAns] = useState("");
+          const [loading, setLoading] = useState(false);
+          const statusLabel = { scheduled: "لم تبدأ", live: "مباشر", halftime: "استراحة", finished: "انتهت", postponed: "مؤجلة" }[match.status] || "";
+
+          const ask = async () => {
+            if (!q.trim()) return;
+            setLoading(true); setAns("");
+            const text = await askClaude(`مباراة ${match.home} ضد ${match.away} في ${match.league}. النتيجة: ${match.homeScore ?? "-"}-${match.awayScore ?? "-"}. السؤال: ${q}. أجب بالعربية بإيجاز.`);
+            setAns(text); setLoading(false);
+          };
+
+          return (
+            <div style={{ position: "fixed", inset: 0, background: "#000000cc", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" }} onClick={onClose}>
+              <div style={{ background: "linear-gradient(160deg,#1a1f2e,#0f1520)", border: "1px solid #ffffff15", borderRadius: "24px", padding: "26px", maxWidth: "460px", width: "100%", maxHeight: "88vh", overflowY: "auto" }} onClick={e => e.stopPropagation()}>
+                <button onClick={onClose} style={{ float: "left", background: "none", border: "none", color: "#64748b", fontSize: "22px", cursor: "pointer" }}>✕</button>
+                <div style={{ textAlign: "center", marginBottom: "18px" }}>
+                  <div style={{ fontSize: "12px", color: "#64748b", marginBottom: "8px" }}>{match.league}</div>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "18px" }}>
+                    <div style={{ textAlign: "center" }}><TeamLogo url={match.homeLogo} size={42} /><div style={{ color: "#f8fafc", fontWeight: 700, fontSize: "14px", marginTop: "5px" }}>{match.home}</div></div>
+                    <div style={{ textAlign: "center" }}>
+                      {match.status === "scheduled"
+                        ? <div style={{ color: "#94a3b8", fontSize: "20px", fontWeight: 700 }}>{match.time}</div>
+                        : <div style={{ fontSize: "34px", fontWeight: 900, color: "#fff", fontFamily: "monospace" }}>{match.homeScore ?? 0} - {match.awayScore ?? 0}</div>}
+                      <div style={{ fontSize: "11px", color: STATUS_COLORS[match.status], marginTop: "4px" }}>{statusLabel}</div>
+                    </div>
+                    <div style={{ textAlign: "center" }}><TeamLogo url={match.awayLogo} size={42} /><div style={{ color: "#f8fafc", fontWeight: 700, fontSize: "14px", marginTop: "5px" }}>{match.away}</div></div>
+                  </div>
+                </div>
+                <div style={{ borderTop: "1px solid #ffffff10", paddingTop: "14px" }}>
+                  <div style={{ color: "#94a3b8", fontSize: "12px", marginBottom: "8px", fontWeight: 600 }}>🤖 اسأل عن هذه المباراة</div>
+                  <div style={{ display: "flex", gap: "7px", marginBottom: "10px" }}>
+                    <input value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => e.key === "Enter" && ask()}
+                      placeholder="من سيفوز؟ تاريخ المواجهات؟"
+                      style={{ flex: 1, background: "#0f1520", border: "1px solid #ffffff15", borderRadius: "10px", padding: "9px 12px", color: "#f8fafc", fontSize: "13px", outline: "none", direction: "rtl" }} />
+                    <button onClick={ask} disabled={loading || !q.trim()} style={{ background: loading ? "#1a1f2e" : "linear-gradient(135deg,#3b82f6,#1d4ed8)", border: "none", borderRadius: "10px", padding: "9px 14px", color: "#fff", fontWeight: 700, cursor: loading ? "not-allowed" : "pointer", fontSize: "13px" }}>
+                      {loading ? "⏳" : "سؤال"}
+                    </button>
+                  </div>
+                  {ans && <div style={{ background: "#0f1520", border: "1px solid #3b82f620", borderRadius: "12px", padding: "12px", color: "#cbd5e1", fontSize: "13px", lineHeight: 1.7, direction: "rtl" }}>{ans}</div>}
+                </div>
+              </div>
+            </div>
+          );
+        }
+
+        function FootballApp() {
+          const [activeLeague, setActiveLeague] = useState(LEAGUES[0]);
+          const [matches, setMatches] = useState([]);
+          const [loading, setLoading] = useState(false);
+          const [error, setError] = useState("");
+          const [detailMatch, setDetailMatch] = useState(null);
+          const [streamMatch, setStreamMatch] = useState(null);
+          const [searchQ, setSearchQ] = useState("");
+          const [searchAns, setSearchAns] = useState("");
+          const [searching, setSearching] = useState(false);
+          const [filter, setFilter] = useState("all");
+
+          const fetchMatches = useCallback(async (league) => {
+            setLoading(true); setError(""); setMatches([]);
+            const today = new Date().toISOString().split("T")[0];
+            const prompt = `ابحث عن مباريات ${league.name} اليوم ${today} أو القادمة أو الأخيرة إذا لا يوجد اليوم.
+        أجب فقط بـ JSON صالح بدون أي نص إضافي أو backticks بهذا الشكل بالضبط:
+        [{"home":"اسم","homeLogo":"رابط شعار الفريق المحلي","away":"اسم","awayLogo":"رابط شعار الفريق الضيف","homeScore":null,"awayScore":null,"status":"scheduled","minute":null,"time":"HH:MM","league":"${league.name}","round":"الجولة X","venue":"اسم الملعب","scorers":[]}]`;
+            try {
+              const text = await askClaude(prompt);
+              const m = text.match(/\[[\s\S]*\]/);
+              if (m) setMatches(JSON.parse(m[0]));
+              else setError("لم يتم العثور على مباريات");
+            } catch { setError("حدث خطأ أثناء التحميل"); }
+            setLoading(false);
+          }, []);
+
+          useEffect(() => { fetchMatches(activeLeague); }, [activeLeague, fetchMatches]);
+
+          const handleSearch = async () => {
+            if (!searchQ.trim()) return;
+            setSearching(true); setSearchAns("");
+            const text = await askClaude(`${searchQ} — أجب بالعربية بشكل مختصر وواضح.`);
+            setSearchAns(text); setSearching(false);
+          };
+
+          const liveCount = matches.filter(m => m.status === "live" || m.status === "halftime").length;
+          const shown = filter === "live" ? matches.filter(m => m.status === "live" || m.status === "halftime") : matches;
+
+          return (
+            <div style={{ minHeight: "100vh", background: "#080d18", fontFamily: "'Segoe UI','Arial',sans-serif", direction: "rtl", color: "#f8fafc" }}>
+              <style>{`
+                @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+                @keyframes pulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 1; } }
+                ::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:#080d18}::-webkit-scrollbar-thumb{background:#1a1f2e;border-radius:3px}
+                input::placeholder{color:#334155}
+              `}</style>
+
+              {/* Header */}
+              <div style={{ background: "linear-gradient(180deg,#0d1525,transparent)", padding: "20px 20px 0", position: "sticky", top: 0, zIndex: 100, backdropFilter: "blur(20px)" }}>
+                <div style={{ maxWidth: "700px", margin: "0 auto" }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "14px" }}>
+                    <div>
+                      <h1 style={{ margin: 0, fontSize: "22px", fontWeight: 900, background: "linear-gradient(135deg,#3b82f6,#60a5fa)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>⚽ كورة لايف</h1>
+                      <div style={{ fontSize: "11px", color: "#475569", marginTop: "2px" }}>{new Date().toLocaleDateString("ar", { weekday: "long", day: "numeric", month: "long" })}</div>
+                    </div>
+                    {liveCount > 0 && (
+                      <div style={{ background: "#22c55e20", border: "1px solid #22c55e44", borderRadius: "20px", padding: "5px 12px", fontSize: "12px", color: "#22c55e", fontWeight: 700, display: "flex", alignItems: "center", gap: "6px" }}>
+                        <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#22c55e", display: "inline-block", animation: "blink 1s infinite" }} />{liveCount} مباشر الآن
+                      </div>
+                    )}
+                  </div>
+
+                  <div style={{ display: "flex", gap: "8px", marginBottom: "12px" }}>
+                    <input value={searchQ} onChange={e => setSearchQ(e.target.value)} onKeyDown={e => e.key === "Enter" && handleSearch()}
+                      placeholder="🔍 اسأل عن أي لاعب أو فريق..."
+                      style={{ flex: 1, background: "#1a1f2e", border: "1px solid #ffffff12", borderRadius: "12px", padding: "10px 14px", color: "#f8fafc", fontSize: "13px", outline: "none" }} />
+                    <button onClick={handleSearch} disabled={searching} style={{ background: "linear-gradient(135deg,#3b82f6,#1d4ed8)", border: "none", borderRadius: "12px", padding: "10px 16px", color: "#fff", fontWeight: 700, cursor: "pointer", fontSize: "13px" }}>
+                      {searching ? "⏳" : "بحث"}
+                    </button>
+                  </div>
+
+                  <div style={{ display: "flex", gap: "6px", overflowX: "auto", paddingBottom: "12px", scrollbarWidth: "none" }}>
+                    {LEAGUES.map(l => (
+                      <button key={l.id} onClick={() => { setActiveLeague(l); setFilter("all"); }} style={{
+                        background: activeLeague.id === l.id ? `linear-gradient(135deg,${l.color}22,${l.color}11)` : "transparent",
+                        border: activeLeague.id === l.id ? `1px solid ${l.color}55` : "1px solid #ffffff10",
+                        borderRadius: "20px", padding: "6px 13px",
+                        color: activeLeague.id === l.id ? "#f8fafc" : "#64748b",
+                        cursor: "pointer", whiteSpace: "nowrap", fontSize: "12px",
+                        fontWeight: activeLeague.id === l.id ? 700 : 500, transition: "all 0.2s"
+                      }}>
+                        {l.icon} {l.name}{l.hasStream && <span style={{ marginRight: "4px", fontSize: "9px", color: "#ef4444" }}>●</span>}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ maxWidth: "700px", margin: "0 auto", padding: "12px 20px" }}>
+                {searchAns && (
+                  <div style={{ background: "linear-gradient(135deg,#1e3a5f20,#1a1f2e)", border: "1px solid #3b82f630", borderRadius: "16px", padding: "15px", marginBottom: "15px" }}>
+                    <div style={{ fontSize: "12px", color: "#3b82f6", fontWeight: 700, marginBottom: "7px" }}>🤖 إجابة الذكاء الاصطناعي</div>
+                    <div style={{ color: "#cbd5e1", fontSize: "13px", lineHeight: 1.8, whiteSpace: "pre-wrap" }}>{searchAns}</div>
+                    <button onClick={() => setSearchAns("")} style={{ background: "none", border: "none", color: "#475569", cursor: "pointer", fontSize: "11px", marginTop: "7px", padding: 0 }}>✕ إغلاق</button>
+                  </div>
+                )}
+
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
+                  <h2 style={{ margin: 0, fontSize: "15px", fontWeight: 700, color: "#e2e8f0" }}>
+                    {activeLeague.icon} {activeLeague.name}
+                    {activeLeague.hasStream && <span style={{ marginRight: "7px", fontSize: "10px", color: "#ef4444" }}>● بث متاح</span>}
+                  </h2>
+                  <div style={{ display: "flex", gap: "6px" }}>
+                    {liveCount > 0 && <button onClick={() => setFilter(f => f === "live" ? "all" : "live")} style={{ background: filter === "live" ? "#22c55e20" : "transparent", border: `1px solid ${filter === "live" ? "#22c55e55" : "#ffffff10"}`, borderRadius: "8px", padding: "5px 10px", color: filter === "live" ? "#22c55e" : "#64748b", cursor: "pointer", fontSize: "11px", fontWeight: 700 }}>🔴 مباشر</button>}
+                    <button onClick={() => fetchMatches(activeLeague)} style={{ background: "#1a1f2e", border: "1px solid #ffffff10", borderRadius: "8px", padding: "5px 10px", color: "#64748b", cursor: "pointer", fontSize: "11px" }}>🔄</button>
+                  </div>
+                </div>
+
+                {loading ? (
+                  <div style={{ textAlign: "center", padding: "60px 0" }}>
+                    <div style={{ fontSize: "40px", marginBottom: "12px", animation: "pulse 1s infinite" }}>⚽</div>
+                    <div style={{ color: "#475569", fontSize: "14px" }}>جارٍ تحميل المباريات...</div>
+                  </div>
+                ) : error ? (
+                  <div style={{ textAlign: "center", padding: "60px 0", color: "#475569" }}>
+                    <div style={{ fontSize: "36px", marginBottom: "10px" }}>⚠️</div>
+                    <div>{error}</div>
+                    <button onClick={() => fetchMatches(activeLeague)} style={{ marginTop: "14px", background: "#1a1f2e", border: "1px solid #ffffff15", borderRadius: "10px", padding: "9px 20px", color: "#94a3b8", cursor: "pointer", fontSize: "13px" }}>إعادة المحاولة</button>
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                    {shown.map((m, i) => (
+                      <MatchCard key={i} match={m} onDetail={setDetailMatch} onStream={setStreamMatch} hasStream={activeLeague.hasStream} />
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {detailMatch && <DetailModal match={detailMatch} onClose={() => setDetailMatch(null)} />}
+              {streamMatch && <StreamModal match={streamMatch} onClose={() => setStreamMatch(null)} />}
+            </div>
+          );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<FootballApp />);
+    </script>
+</body>
+</html>
